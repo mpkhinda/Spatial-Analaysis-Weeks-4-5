@@ -207,14 +207,14 @@ ggplot(Chelsea_streets) +
 
 ```{r countour from raster, echo = FALSE}
 access_contours <- st_contour(access_raster, contour_lines = TRUE, 
-                              breaks = c(0,2,4,6,8))
+                              breaks = c(0,5,10,15,20, 25))
 
 ggplot(Chelsea_streets) +
   geom_sf(color = "gray", size = 0.3) +
   geom_sf(data = access_contours, aes(color = accessibility), fill = NA) +
   scale_color_viridis_c(na.value = NA, 
                        option="A",
-                       breaks = c(0,2,4,6,8),
-                       name = "Pedestrian access to\ntransit stops") +
+                       breaks = c(0,5,10,15,20, 25),
+                       name = "Pedestrian access\nto transit stops") +
   theme_void()
 ```
