@@ -145,5 +145,36 @@ ggplot(transit_access) +
   theme_void()
 
 ```
+```{r transit access 2}
+transit_access2 <- accessibility(r5r_core,
+                        origins = transit_points,
+                        destinations = transit_points,
+                        mode = "WALK",
+                        opportunities_colname = "num_stops",
+                        decay_function = "exponential",
+                        cutoffs = 5,
+                        departure_datetime = as.POSIXct("15-11-2021 14:00:00",
+                                 format = "%d-%m-%Y %H:%M:%S"),
+                        max_walk_dist = 500,
+                        time_window = 60,
+                        percentiles = 50,
+                        verbose = FALSE) %>%
+  mutate(id = as.numeric(from_id)) %>%
+  merge(grid)
 
+st_geometry(transit_access2) <- "geometry"
+
+ggplot(transit_access2) +
+  geom_sf(aes(fill = accessibility), color = NA) +
+  scale_fill_viridis_c(name = "Accessiblity score", option = "magma") +
+  coord_sf(crs = MA_state_plane) +
+  theme_void()
+
+st_write(transit_access2, 'Chelsea_access.geojson', append=FALSE, quiet=TRUE )
+
+```
+
+```{r}
+stop_r5(r5r_core)
+```
 
