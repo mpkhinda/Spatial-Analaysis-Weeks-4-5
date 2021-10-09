@@ -117,7 +117,33 @@ ggplot(transit_points) +
   theme_void()
 ```
 
+```{r accessibility, echo = FALSE}
+r5r_core <- setup_r5("networks", verbose = FALSE)
 
+transit_access <- accessibility(r5r_core,
+                        origins = transit_points,
+                        destinations = transit_points,
+                        mode = "WALK",
+                        opportunities_colname = "num_stops",
+                        decay_function = "step",
+                        cutoffs = 11,
+                        departure_datetime = as.POSIXct("15-11-2021 14:00:00",
+                                 format = "%d-%m-%Y %H:%M:%S"),
+                        max_walk_dist = 500,
+                        time_window = 60,
+                        percentiles = 50,
+                        verbose = FALSE) %>%
+  mutate(id = as.numeric(from_id)) %>%
+  merge(grid)
 
+st_geometry(transit_access) <- "geometry"
+
+ggplot(transit_access) +
+  geom_sf(aes(fill = accessibility), color = NA) +
+  scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "magma") +
+  coord_sf(crs = MA_state_plane) +
+  theme_void()
+
+```
 
 
