@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r load libraries, include = FALSE}
-options(java.parameters = "-Xmx2G")
+options(java.parameters = "-Xmx4G")
 
 library(r5r)
 library(sf)
@@ -22,6 +22,7 @@ library(ggspatial)
 library(tigris)
 library(wesanderson)
 library(tidytransit)
+library(stars)
 ```
 
 ```{r gtfs data}
@@ -112,7 +113,7 @@ transit_points <- st_centroid(transit_grid)
 
 ggplot(transit_points) +
   geom_sf(aes(color = as.character(num_stops))) +
-  scale_color_manual(values = c("lightgray", "lightblue", "blue", "darkblue", "purple"), 
+  scale_color_manual(values = c("lightgray", "green", "blue", "darkblue", "purple"), 
                     name = "Number of\ntransit stops") +
   theme_void()
 ```
@@ -140,7 +141,7 @@ st_geometry(transit_access) <- "geometry"
 
 ggplot(transit_access) +
   geom_sf(aes(fill = accessibility), color = NA) +
-  scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "magma") +
+  scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "cividis") +
   coord_sf(crs = MA_state_plane) +
   theme_void()
 
@@ -174,7 +175,22 @@ st_write(transit_access2, 'Chelsea_access.geojson', append=FALSE, quiet=TRUE )
 
 ```
 
-```{r}
+```{r stop core, include=FALSE}
 stop_r5(r5r_core)
 ```
 
+```{r access raster}
+access_poly <- st_read("Chelsea_access.geojson", quiet=TRUE)
+
+access_raster <- st_rasterize(access_poly["accessibility"], 
+                              nx = 100, ny = 100)
+
+ggplot(Chelsea_streets) +
+  geom_stars(data = access_raster) +
+  geom_sf(color = "white", alpha = 0.2) +
+  coord_sf(crs = st_crs(grid)) +
+  scale_fill_viridis_c(na.value = NA, 
+                       option="mako",
+                       name = "Pedestrian access\nto transit stops") +
+  theme_void()
+```
