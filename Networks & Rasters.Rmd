@@ -1,7 +1,7 @@
 ---
 title: "Networks & Rasters"
 author: "Matt Khinda"
-date: "10/9/2021"
+date: "10/8/2021"
 output: html_document
 ---
 
@@ -9,22 +9,100 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r load libraries, include = FALSE}
+options(java.parameters = "-Xmx2G")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+library(r5r)
+library(sf)
+library(osmextract)
+library(tidyverse)
+library(ggthemes)
+library(ggspatial)
+library(tigris)
+library(wesanderson)
+library(tidytransit)
 ```
 
-## Including Plots
+```{r gtfs data}
+dir.create("networks")
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+download.file("https://transitfeeds.com/p/mbta/64/latest/download", file.path("networks","MBTAgtfs.zip"), mode = "wb", quiet=TRUE)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r street data}
+Mass_file <- oe_match("us/massachusetts")
+
+Mass_streets <- oe_read(Mass_file$url, 
+                   provider = "openstreetmap_fr", 
+                   download_directory = "networks", 
+                   layer = "lines", 
+                   quiet = TRUE) %>%
+  filter(!is.na(highway))
+
+```
+
+```{r plot 1, echo=FALSE}
+ggplot(Mass_streets) +
+  geom_sf()
+```
+
+```{r chelsea boudaries,echo=FALSE}
+Chelsea_tigris <- places("Massachusetts")%>%
+  filter(NAME == "Chelsea") %>%
+  st_transform(crs = st_crs(Mass_streets))
+
+ggplot(Chelsea_tigris) +
+  geom_sf()
+```
+
+```{r clipping streets, echo=FALSE}
+MA_state_plane <- "+proj=lcc +lat_1=41.71666666666667 +lat_2=42.68333333333333 +lat_0=41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +ellps=GRS80 +units=m +no_defs"
+
+Mass_streets <- Mass_streets %>%
+  st_transform(MA_state_plane)
+
+Chelsea_tigris <- Chelsea_tigris %>%
+  st_transform(MA_state_plane)
+
+Chelsea_streets <- Mass_streets[Chelsea_tigris,]
+
+##Removing MA data to speed up git pushes
+rm(Mass_file, Mass_streets)
+
+ggplot() +
+  geom_sf(data = Chelsea_tigris, fill = "gray", color = NA) +
+  geom_sf(data = Chelsea_streets) +
+  theme_void()
+
+```
+
+```{r grid, echo=FALSE}
+grid <- st_sf(st_make_grid(Chelsea_tigris, square = FALSE,
+                           n = c(100, 100),
+                           what = "polygons")) %>% 
+  st_filter(Chelsea_tigris)
+
+colnames(grid) <- "geometry"
+st_geometry(grid) <- "geometry"
+
+grid <- grid %>% 
+  mutate(id = seq(1, length(grid$geometry), by = 1))
+
+
+ggplot() +
+  geom_sf(data = grid)+
+  theme_map()
+```
+
+
+```{r transit stops}
+
+
+
+```
+
+
+
+
+
