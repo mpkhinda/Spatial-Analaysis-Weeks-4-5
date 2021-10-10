@@ -25,13 +25,13 @@ library(tidytransit)
 library(stars)
 ```
 
-```{r gtfs data}
+```{r gtfs data, include=FALSE}
 dir.create("networks")
 
 download.file("https://transitfeeds.com/p/mbta/64/latest/download", file.path("networks","MBTAgtfs.zip"), mode = "wb", quiet=TRUE)
 ```
 
-```{r street data}
+```{r street data, include=FALSE}
 Mass_file <- oe_match("us/massachusetts")
 
 Mass_streets <- oe_read(Mass_file$url, 
@@ -43,12 +43,12 @@ Mass_streets <- oe_read(Mass_file$url,
 
 ```
 
-```{r plot 1, echo=FALSE}
+```{r plot 1, include=FALSE}
 ggplot(Mass_streets) +
   geom_sf()
 ```
 
-```{r chelsea boudaries,echo=FALSE}
+```{r chelsea boudaries, include=FALSE}
 Chelsea_tigris <- places("Massachusetts")%>%
   filter(NAME == "Chelsea") %>%
   st_transform(crs = st_crs(Mass_streets))
@@ -57,7 +57,7 @@ ggplot(Chelsea_tigris) +
   geom_sf()
 ```
 
-```{r clipping streets, echo=FALSE}
+```{r clipping streets, include=FALSE}
 MA_state_plane <- "+proj=lcc +lat_1=41.71666666666667 +lat_2=42.68333333333333 +lat_0=41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +ellps=GRS80 +units=m +no_defs"
 
 Chelsea_streets <- Mass_streets[Chelsea_tigris,]
@@ -73,7 +73,7 @@ ggplot() +
 
 ```
 
-```{r grid, echo=FALSE}
+```{r grid, include=FALSE}
 grid <- st_sf(st_make_grid(Chelsea_tigris, square = FALSE,
                            n = c(100, 100),
                            what = "polygons")) %>% 
@@ -92,7 +92,7 @@ ggplot() +
 ```
 
 
-```{r transit stops}
+```{r transit stops, include=FALSE}
 Mass_transit <- read_gtfs(file.path("networks", "MBTAgtfs.zip"))
 
 #filter out only Chelsea stops so it won't return NAs for lat and lon
@@ -124,6 +124,9 @@ r5r_core <- setup_r5("networks", verbose = FALSE)
 
 ##Travel Time
 
+**Map 1:Contour Map of Transit Stops Within a 10 Minute Walk**
+This map displays a series of contours that delineate how many transit stops are within a 10 minute walk from different locations in the city. Because Chelsea, MA is a fairly small city (about 2.5mi²) most transit stops are accessible from the city center within a 10 minute walk. For additional context we also added the outline of Chelsea's census boundary and the point data for the transit stops themselves.
+
 ```{r traveltime 1, echo = FALSE}
 transit_access <- accessibility(r5r_core,
                         origins = transit_points,
@@ -146,20 +149,93 @@ st_geometry(transit_access) <- "geometry"
 transit_stop_locs <- transit_points %>%
   filter(num_stops > 0)
 
-ggplot(transit_access) +
-  geom_sf(aes(fill = accessibility), color = NA) +
-  scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "cividis") +
-  geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
-  geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
-  coord_sf(crs = MA_state_plane) +
+st_write(transit_access, 'Chelsea_ped_access.geojson', append=FALSE, quiet=TRUE)
+
+ped_access_poly <- st_read("Chelsea_ped_access.geojson", quiet=TRUE)
+
+ped_access_raster <- st_rasterize(ped_access_poly["accessibility"], 
+                              nx = 100, ny = 100)
+
+ped_access_contours <- st_contour(ped_access_raster, contour_lines = TRUE, 
+                              breaks = c(0,10,20,30,40))
+
+ggplot(Chelsea_streets) +
+  geom_sf(data = Chelsea_tigris, fill = NA, color = "black", size = 0.4, linetype = "dashed") +
+  geom_sf(color = "gray", size = 0.3) +
+  geom_sf(data = ped_access_contours, aes(color = accessibility), fill = NA) +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.35) +
+  scale_color_viridis_c(na.value = NA, 
+                       breaks = c(0,10,20,30,40),
+                       name = "Transit stops\nwithin a 10 minute \nwalk") +
+    annotation_north_arrow(
+    style = north_arrow_minimal, 
+    height = unit(0.75, "cm"), 
+    width = unit(0.75, "cm"), 
+    pad_x = unit(1.5, "cm"), 
+    pad_y = unit(1.5, "cm"),) +
+  annotation_scale(
+    pad_x = unit(1.75, "cm"), 
+    pad_y = unit(1, "cm"))+
   theme_void()
+
+```
+
+**Map 2:Title**
+
+```{r traveltime 1, echo = FALSE}
+bike_transit_access <- accessibility(r5r_core,
+                        origins = transit_points,
+                        destinations = transit_points,
+                        mode = "BICYCLE",
+                        opportunities_colname = "num_stops",
+                        decay_function = "step",
+                        cutoffs = 11,
+                        departure_datetime = as.POSIXct("15-11-2021 14:00:00",
+                                 format = "%d-%m-%Y %H:%M:%S"),
+                        max_walk_dist = 500,
+                        time_window = 60,
+                        percentiles = 50,
+                        verbose = FALSE) %>%
+  mutate(id = as.numeric(from_id)) %>%
+  merge(grid)
+
+st_write(bike_transit_access, 'Chelsea_bike_access.geojson', append=FALSE, quiet=TRUE)
+
+bike_access_poly <- st_read("Chelsea_bike_access.geojson", quiet=TRUE)
+
+bike_access_raster <- st_rasterize(bike_access_poly["accessibility"], 
+                              nx = 100, ny = 100)
+
+bike_access_contours <- st_contour(bike_access_raster, contour_lines = TRUE, 
+                              breaks = c(0,10,20,30,40))
+
+ggplot(Chelsea_streets) +
+  geom_sf(data = Chelsea_tigris, fill = NA, color = "black", size = 0.4, linetype = "dashed") +
+  geom_sf(color = "gray", size = 0.3) +
+  geom_sf(data = bike_access_contours, aes(color = accessibility), fill = NA) +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.35) +
+  scale_color_viridis_c(na.value = NA, 
+                       breaks = c(0,10,20,30,40),
+                       name = "Transit stops\nwithin a 10 minute \nwalk") +
+    annotation_north_arrow(
+    style = north_arrow_minimal, 
+    height = unit(0.75, "cm"), 
+    width = unit(0.75, "cm"), 
+    pad_x = unit(1.5, "cm"), 
+    pad_y = unit(1.5, "cm"),) +
+  annotation_scale(
+    pad_x = unit(1.75, "cm"), 
+    pad_y = unit(1, "cm"))+
+  theme_void()
+
 ```
 
 ##Accessibility Scores
 
-Map 1: Pedestrian Accessibility Score
+**Map 1: Pedestrian Accessibility Score**
+This map illustrates the pedestrian accessibility of transit stops in Chelsea, MA. It calculates an accessibility score of each point on the hexagonal grid overlaid on the city according to how far away it is from the surrounding transit stops. Perhaps unsurprisingly, the center of the city is scored as having the most pedestrian-accessible transit stops, which is likely due to the concentration of immediately adjacent transfer stations found there. 
 
-```{r transit access 2, echo = FALSE}
+```{r transit access 1, echo = FALSE}
 transit_access2 <- accessibility(r5r_core,
                         origins = transit_points,
                         destinations = transit_points,
@@ -180,17 +256,27 @@ st_geometry(transit_access2) <- "geometry"
 
 ggplot(transit_access2) +
   geom_sf(aes(fill = accessibility), color = NA) +
-  scale_fill_viridis_c(name = "Accessiblity score", option = "F") +
-  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.6, size = 0.3) +
+  scale_fill_viridis_c(name = "Pedestrian \nAccessiblity \nScore", option = "F") +
+  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.3, size = 0.3) +
   geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
   geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
+  annotation_north_arrow(
+    style = north_arrow_minimal, 
+    height = unit(0.75, "cm"), 
+    width = unit(0.75, "cm"), 
+    pad_x = unit(1.5, "cm"), 
+    pad_y = unit(1.5, "cm"),) +
+  annotation_scale(
+    pad_x = unit(1.75, "cm"), 
+    pad_y = unit(1, "cm"))+
   coord_sf(crs = MA_state_plane) +
   theme_void()
 ```
 
-Map 2: Bicycle Accessibility Score
+**Map 2: Bicycle Accessibility Score**
+Similarly to the map above, this map visualizes the accessibility of transit stops in Chelsea by bicycle. Of course, because cycling is a faster mode of transit, the cycling accessibility scores are much higher than the pedestrian ones above. As such, the intensity of gradients between the two maps is not directly comparable — something we have tried to emphasize by using a different color scale altogether. 
 
-```{r transit access 3, echo = FALSE}
+```{r transit access 2, echo = FALSE}
 transit_access3 <- accessibility(r5r_core,
                         origins = transit_points,
                         destinations = transit_points,
@@ -211,10 +297,19 @@ st_geometry(transit_access3) <- "geometry"
 
 ggplot(transit_access3) +
   geom_sf(aes(fill = accessibility), color = NA) +
-  scale_fill_viridis_c(name = "Accessiblity score", option = "mako") +
-  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.6, size = 0.3) +
+  scale_fill_viridis_c(name = "Bicycle \nAccessiblity \nScore", option = "mako") +
+  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.3, size = 0.3) +
   geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
   geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
+  annotation_north_arrow(
+    style = north_arrow_minimal, 
+    height = unit(0.75, "cm"), 
+    width = unit(0.75, "cm"), 
+    pad_x = unit(1.5, "cm"), 
+    pad_y = unit(1.5, "cm"),) +
+  annotation_scale(
+    pad_x = unit(1.75, "cm"), 
+    pad_y = unit(1, "cm"))+
   coord_sf(crs = MA_state_plane) +
   theme_void()
 ```
@@ -223,9 +318,6 @@ ggplot(transit_access3) +
 ```{r stop core, include=FALSE}
 stop_r5(r5r_core)
 ```
-
-
-
 
 ```{r access raster, echo = FALSE}
 st_write(transit_access2, 'Chelsea_access.geojson', append=FALSE, quiet=TRUE )
@@ -246,7 +338,7 @@ ggplot(Chelsea_streets) +
 ```
 
 
-```{r poly from raster, echo = FALSE}
+```{r poly from raster, include = FALSE}
 access_poly2 <- st_as_sf(access_raster, as_points = FALSE, merge = TRUE)
 
 ggplot(Chelsea_streets) +
