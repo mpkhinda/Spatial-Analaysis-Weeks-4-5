@@ -118,9 +118,13 @@ ggplot(transit_points) +
   theme_void()
 ```
 
-```{r accessibility, echo = FALSE}
+```{r startcore, include = FALSE}
 r5r_core <- setup_r5("networks", verbose = FALSE)
+```
 
+##Travel Time
+
+```{r traveltime 1, echo = FALSE}
 transit_access <- accessibility(r5r_core,
                         origins = transit_points,
                         destinations = transit_points,
@@ -145,15 +149,17 @@ transit_stop_locs <- transit_points %>%
 ggplot(transit_access) +
   geom_sf(aes(fill = accessibility), color = NA) +
   scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "cividis") +
-  geom_sf(data = transit_stop_locs, color = "black", size = 0.85) +
-  geom_sf(data = transit_stop_locs, color = "white", size = 0.5) +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
+  geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
   coord_sf(crs = MA_state_plane) +
   theme_void()
-
 ```
 
+##Accessibility Scores
 
-```{r transit access 2}
+Map 1: Pedestrian Accessibility Score
+
+```{r transit access 2, echo = FALSE}
 transit_access2 <- accessibility(r5r_core,
                         origins = transit_points,
                         destinations = transit_points,
@@ -180,16 +186,50 @@ ggplot(transit_access2) +
   geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
   coord_sf(crs = MA_state_plane) +
   theme_void()
-
-st_write(transit_access2, 'Chelsea_access.geojson', append=FALSE, quiet=TRUE )
-
 ```
+
+Map 2: Bicycle Accessibility Score
+
+```{r transit access 3, echo = FALSE}
+transit_access3 <- accessibility(r5r_core,
+                        origins = transit_points,
+                        destinations = transit_points,
+                        mode = "BICYCLE",
+                        opportunities_colname = "num_stops",
+                        decay_function = "exponential",
+                        cutoffs = 5,
+                        departure_datetime = as.POSIXct("15-11-2021 14:00:00",
+                                 format = "%d-%m-%Y %H:%M:%S"),
+                        max_walk_dist = 500,
+                        time_window = 60,
+                        percentiles = 50,
+                        verbose = FALSE) %>%
+  mutate(id = as.numeric(from_id)) %>%
+  merge(grid)
+
+st_geometry(transit_access3) <- "geometry"
+
+ggplot(transit_access3) +
+  geom_sf(aes(fill = accessibility), color = NA) +
+  scale_fill_viridis_c(name = "Accessiblity score", option = "mako") +
+  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.6, size = 0.3) +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
+  geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
+  coord_sf(crs = MA_state_plane) +
+  theme_void()
+```
+
 
 ```{r stop core, include=FALSE}
 stop_r5(r5r_core)
 ```
 
+
+
+
 ```{r access raster, echo = FALSE}
+st_write(transit_access2, 'Chelsea_access.geojson', append=FALSE, quiet=TRUE )
+
 access_poly <- st_read("Chelsea_access.geojson", quiet=TRUE)
 
 access_raster <- st_rasterize(access_poly["accessibility"], 
@@ -204,6 +244,8 @@ ggplot(Chelsea_streets) +
                        name = "Pedestrian access\nto transit stops") +
   theme_void()
 ```
+
+
 ```{r poly from raster, echo = FALSE}
 access_poly2 <- st_as_sf(access_raster, as_points = FALSE, merge = TRUE)
 
