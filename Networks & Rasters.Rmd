@@ -139,13 +139,20 @@ transit_access <- accessibility(r5r_core,
 
 st_geometry(transit_access) <- "geometry"
 
+transit_stop_locs <- transit_points %>%
+  filter(num_stops > 0)
+
 ggplot(transit_access) +
   geom_sf(aes(fill = accessibility), color = NA) +
   scale_fill_viridis_c(name = "Transit stops\nwithin 10-minutes\nwalk",option = "cividis") +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.85) +
+  geom_sf(data = transit_stop_locs, color = "white", size = 0.5) +
   coord_sf(crs = MA_state_plane) +
   theme_void()
 
 ```
+
+
 ```{r transit access 2}
 transit_access2 <- accessibility(r5r_core,
                         origins = transit_points,
@@ -167,7 +174,10 @@ st_geometry(transit_access2) <- "geometry"
 
 ggplot(transit_access2) +
   geom_sf(aes(fill = accessibility), color = NA) +
-  scale_fill_viridis_c(name = "Accessiblity score", option = "magma") +
+  scale_fill_viridis_c(name = "Accessiblity score", option = "F") +
+  geom_sf(data = Chelsea_streets, color = "white", alpha = 0.6, size = 0.3) +
+  geom_sf(data = transit_stop_locs, color = "black", size = 0.95) +
+  geom_sf(data = transit_stop_locs, color = "white", size = 0.6) +
   coord_sf(crs = MA_state_plane) +
   theme_void()
 
