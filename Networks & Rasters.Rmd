@@ -124,7 +124,7 @@ r5r_core <- setup_r5("networks", verbose = FALSE)
 
 ##Travel Time
 
-**Map 1:Contour Map of Transit Stops Within a 10 Minute Walk**
+**Map 1: Contour Map of Transit Stops Within a 10 Minute Walk**
 This map displays a series of contours that delineate how many transit stops are within a 10 minute walk from different locations in the city. Because Chelsea, MA is a fairly small city (about 2.5mi²) most transit stops are accessible from the city center within a 10 minute walk. For additional context we also added the outline of Chelsea's census boundary and the point data for the transit stops themselves.
 
 ```{r traveltime 1, echo = FALSE}
@@ -180,16 +180,17 @@ ggplot(Chelsea_streets) +
 
 ```
 
-**Map 2:Title**
+**Map 2: Contour Map of Transit Stops Within a 5 Minute Bike Ride**
 
-```{r traveltime 1, echo = FALSE}
+
+```{r traveltime 2, echo = FALSE}
 bike_transit_access <- accessibility(r5r_core,
                         origins = transit_points,
                         destinations = transit_points,
                         mode = "BICYCLE",
                         opportunities_colname = "num_stops",
                         decay_function = "step",
-                        cutoffs = 11,
+                        cutoffs = 6,
                         departure_datetime = as.POSIXct("15-11-2021 14:00:00",
                                  format = "%d-%m-%Y %H:%M:%S"),
                         max_walk_dist = 500,
@@ -215,8 +216,9 @@ ggplot(Chelsea_streets) +
   geom_sf(data = bike_access_contours, aes(color = accessibility), fill = NA) +
   geom_sf(data = transit_stop_locs, color = "black", size = 0.35) +
   scale_color_viridis_c(na.value = NA, 
+                       option = "turbo",
                        breaks = c(0,10,20,30,40),
-                       name = "Transit stops\nwithin a 10 minute \nwalk") +
+                       name = "Transit stops\nwithin a 5 minute \nbike ride") +
     annotation_north_arrow(
     style = north_arrow_minimal, 
     height = unit(0.75, "cm"), 
